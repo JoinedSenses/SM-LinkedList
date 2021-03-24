@@ -1,2 +1,4 @@
 # SM-LinkedList
-Linked List implemented in sourcepawn
+Linked List implemented in SourcePawn
+
+Made for funsies.
