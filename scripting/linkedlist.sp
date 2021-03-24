@@ -2,7 +2,6 @@
 #pragma newdecls required
 
 #include <sourcemod>
-#include <linkedlist>
 
 #define PLUGIN_NAME "LinkedList"
 #define PLUGIN_AUTHOR "JoinedSenses"
@@ -49,6 +48,8 @@ enum struct _LinkedList {
 //
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+	RegPluginLibrary("LinkedList");
+
 	CreateNative("Node.Node", Node_Node);
 	CreateNative("Node.Next.get", Node_Next_get);
 	CreateNative("Node.Next.set", Node_Next_set);
@@ -63,7 +64,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("LinkedList.Get", LinkedList_Get);
 	CreateNative("LinkedList.Set", LinkedList_Set);
 	CreateNative("LinkedList.Clear", LinkedList_Clear);
+	CreateNative("LinkedList.Clone", LinkedList_Clone);
 	CreateNative("LinkedList.Size.get", LinkedList_Size_get);
+
+	CreateNative("CloneLinkedList", native_CloneLinkedList);
 }
 
 public void OnPluginStart() {
@@ -78,14 +82,11 @@ public void OnPluginStart() {
 // == Natives
 
 public any Node_Node(Handle plugin, int params) {
-	Handle arr = CreateArray(sizeof _Node, 1);
+	Handle temp = CreateArray(sizeof _Node, 1);
 
-	_Node node;
-	SetArrayArray(arr, 0, node);
+	Handle clone = CloneHandle(temp, GetNativeCell(1));
 
-	Handle clone = CloneHandle(arr, GetNativeCell(1));
-
-	CloseHandle(arr);
+	CloseHandle(temp);
 
 	return clone;
 }
@@ -120,7 +121,7 @@ public any Node_Data_set(Handle plugin, int params) {
 
 public any LinkedList_LinkedList(Handle plugin, int params) {
 	int startsize = GetNativeCell(1);
-	Handle arr = CreateArray(sizeof _LinkedList, 1);
+	Handle temp = CreateArray(sizeof _LinkedList, 1);
 
 	_LinkedList list;
 	list.owner = plugin;
@@ -131,8 +132,7 @@ public any LinkedList_LinkedList(Handle plugin, int params) {
 		list.size = 1;
 
 		for (int i = 1; i < startsize; ++i) {
-			current.Next = new Node(plugin);
-			current = current.Next;
+			current = current.Next = new Node(plugin);
 
 			++list.size;
 		}
@@ -140,11 +140,10 @@ public any LinkedList_LinkedList(Handle plugin, int params) {
 		list.back = current;
 	}
 
-	SetArrayArray(arr, 0, list);
+	Handle clone = CloneHandle(temp, plugin);
+	SetArrayArray(clone, 0, list);
 
-	Handle clone = CloneHandle(arr, plugin);
-
-	CloseHandle(arr);
+	CloseHandle(temp);
 
 	return clone;
 }
@@ -155,14 +154,14 @@ public any LinkedList_Close(Handle plugin, int params) {
 	_LinkedList list;
 	GetArrayArray(self, 0, list);
 
+	CloseHandle(self);
+
 	Node node;
 	while (list.front != null) {
 		node = list.front;
-		list.front = list.front.Next;
+		list.front = node.Next;
 		CloseHandle(node);
 	}
-
-	CloseHandle(self);
 
 	return 0;
 }
@@ -183,8 +182,7 @@ public any LinkedList_Push(Handle plugin, int params) {
 		list.back = node;
 	}
 	else {
-		list.back.Next = node;
-		list.back = node;
+		list.back = list.back.Next = node;
 	}
 
 	SetArrayArray(self, 0, list);
@@ -320,8 +318,93 @@ public any LinkedList_Clear(Handle plugin, int params) {
 	return 0;
 }
 
+public any LinkedList_Clone(Handle plugin, int params) {
+	Handle self = GetNativeCell(1);
+
+	_LinkedList _toCopy;
+	GetArrayArray(self, 0, _toCopy);
+
+	Handle owner = _toCopy.owner;
+
+	_LinkedList list;
+	list.owner = owner;
+
+	int size = _toCopy.size;
+	if (size > 0) {
+		Node temp = _toCopy.front;
+		Node current = new Node(owner);
+		current.Data = current.Data;
+
+		list.front = current;
+		list.size = size;
+
+		for (int i = 1; i < size; ++i) {
+			temp = temp.Next;
+
+			Node next = new Node(owner);
+			next.Data = temp.Data;
+			current = current.Next = next;
+		}
+
+		list.back = current;
+	}
+
+	Handle temp = CreateArray(sizeof _LinkedList, 1);
+
+	Handle clone = CloneHandle(temp, plugin);
+	SetArrayArray(clone, 0, list);
+
+	CloseHandle(temp);
+
+	return clone;
+}
+
 public any LinkedList_Size_get(Handle plugin, int params) {
 	Handle self = GetNativeCell(1);
 
 	return GetArrayCell(self, 0, _LinkedList::size);
+}
+
+public any native_CloneLinkedList(Handle plugin, int params) {
+	Handle toCopy = GetNativeCell(1);
+	Handle owner = GetNativeCell(2);
+
+	if (owner == null) {
+		owner = plugin;
+	}
+
+	_LinkedList _toCopy;
+	GetArrayArray(toCopy, 0, _toCopy);
+
+	_LinkedList list;
+	list.owner = owner;
+
+	int size = _toCopy.size;
+	if (size > 0) {
+		Node temp = _toCopy.front;
+		Node current = new Node(owner);
+		current.Data = current.Data;
+
+		list.front = current;
+		list.size = size;
+
+		for (int i = 1; i < size; ++i) {
+			temp = temp.Next;
+
+			Node next = new Node(owner);
+			next.Data = temp.Data;
+			current = current.Next = next;
+		}
+
+		list.back = current;
+	}
+
+	Handle temp = CreateArray(sizeof _LinkedList, 1);
+
+	Handle clone = CloneHandle(temp, plugin);
+	SetArrayArray(clone, 0, list);
+
+	CloseHandle(temp);
+
+	return clone;
 }
